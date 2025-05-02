@@ -35,12 +35,18 @@ apiRouter.post('/test-connection', (req, res) => {
     clean: true
   };
   
+  // Add authentication - your broker requires username and password
   if (username) options.username = username;
   if (password) options.password = password;
+  
+  // If no credentials provided but your broker needs them
+  if (!username || !password) {
+    console.warn('Attempting to connect without credentials. Your broker may require authentication.');
+  }
 
   try {
     console.log(`Attempting to connect to MQTT broker at ${url} with options:`, 
-                JSON.stringify({...options, password: options.password ? '****' : undefined}));
+                JSON.stringify({...options, username: username || 'not provided', password: password ? '****' : 'not provided'}));
     
     // Connect to MQTT broker
     const client = mqtt.connect(url, options);
@@ -50,7 +56,8 @@ apiRouter.post('/test-connection', (req, res) => {
       client.end();
       return res.status(408).json({ 
         success: false, 
-        message: 'Connection timeout - broker did not respond in time' 
+        message: 'Connection timeout - broker did not respond in time',
+        details: 'If your broker requires authentication, ensure username and password are provided'
       });
     }, 12000); // Increased to 12 seconds
     
@@ -70,7 +77,7 @@ apiRouter.post('/test-connection', (req, res) => {
       return res.status(500).json({ 
         success: false, 
         message: `Connection error: ${err.message}`,
-        details: `Check if the broker is running and accessible at ${host}:${port}`
+        details: `Check if the broker is running and accessible at ${host}:${port}` 
       });
     });
 
