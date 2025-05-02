@@ -30,7 +30,7 @@ apiRouter.post('/test-connection', (req, res) => {
   
   // Connection options
   const options = {
-    connectTimeout: 5001, // 5 seconds
+    connectTimeout: 10000, // Increased to 10 seconds
     reconnectPeriod: 0, // Don't auto reconnect for this test
     clean: true
   };
@@ -39,6 +39,9 @@ apiRouter.post('/test-connection', (req, res) => {
   if (password) options.password = password;
 
   try {
+    console.log(`Attempting to connect to MQTT broker at ${url} with options:`, 
+                JSON.stringify({...options, password: options.password ? '****' : undefined}));
+    
     // Connect to MQTT broker
     const client = mqtt.connect(url, options);
     
@@ -47,9 +50,9 @@ apiRouter.post('/test-connection', (req, res) => {
       client.end();
       return res.status(408).json({ 
         success: false, 
-        message: 'Connection timeout' 
+        message: 'Connection timeout - broker did not respond in time' 
       });
-    }, 7000); // 7 second timeout
+    }, 12000); // Increased to 12 seconds
     
     client.on('connect', () => {
       clearTimeout(timeoutId);
@@ -66,7 +69,20 @@ apiRouter.post('/test-connection', (req, res) => {
       console.error('MQTT connection error:', err);
       return res.status(500).json({ 
         success: false, 
-        message: `Connection error: ${err.message}` 
+        message: `Connection error: ${err.message}`,
+        details: `Check if the broker is running and accessible at ${host}:${port}`
+      });
+    });
+
+    // Add specific handling for the 'offline' event
+    client.on('offline', () => {
+      clearTimeout(timeoutId);
+      console.error('MQTT broker connection offline');
+      client.end();
+      return res.status(503).json({
+        success: false,
+        message: 'MQTT broker is unreachable or offline',
+        details: `Check if the broker is running and accessible at ${host}:${port}`
       });
     });
     
